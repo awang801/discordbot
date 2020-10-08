@@ -15,8 +15,6 @@ import time
 import youtube_dl
 import mysql.connector as mysql
 
-
-
 #remake tables using splice
 #conn = sqlite3.connect('data.db')
 conn = mysql.connect(
@@ -49,7 +47,7 @@ ytdl_format_options = {
 
 ffmpeg_options = {
 	'options': '-vn -af loudnorm=I=-16:TP=-1.5:LRA=11',
-	'before_options': '-ss 30'
+	'before_options': '-ss 0'
 }
 
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
@@ -209,8 +207,7 @@ async def add(ctx, *argv):
 			await ctx.send('Failed to submit entry')
 	
 @client.command(pass_context = True)
-async def test(ctx):
-		"""Streams from a url (same as yt, but doesn't predownload)"""
+async def quiz(ctx, genre = None, *argv):
 		if ctx.voice_client is None:
 			await ctx.author.voice.channel.connect()
 		loop = True
@@ -218,13 +215,19 @@ async def test(ctx):
 		unique = []
 		while(loop):
 			try:
-
+				if(genre):
+					c.execute('SELECT * FROM WeebQuiz where genre = "'+genre+'" ORDER BY RAND() LIMIT 1')
+					weebQuiz = c.fetchall()
+					if (len(weebQuiz) == 0):
+						await ctx.send("That's not a valid genre b-b-baka")
+						break
+				else:
+					c.execute('SELECT * FROM WEEBQUIZ ORDER BY RAND() LIMIT 1')
+					weebQuiz = c.fetchall()
+				entry = weebQuiz[0][2]
 				uniqueLoop = True
 				print(unique)
 				while(uniqueLoop):
-					c.execute('SELECT * FROM WeebQuiz ORDER BY RAND() LIMIT 1')
-					weebQuiz = c.fetchall()
-					entry = weebQuiz[0][2]
 					if(any(x == entry for x in unique)):
 						continue
 					else:
@@ -236,6 +239,10 @@ async def test(ctx):
 				fileName = weebQuiz[0][3]
 				answers = re.split(',|, ',weebQuiz[0][0])
 				print(answers)
+				random_offset = random.randrange(1,60)
+				ffmpeg_options['before_options'] = '-ss ' +str(random_offset)
+				print(ffmpeg_options['before_options'])
+				
 				source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("songs/" + fileName,**ffmpeg_options))
 				ctx.voice_client.play(source, after=lambda e: print('Player error: %s' % e) if e else None)
 				channel = ctx.message.channel
