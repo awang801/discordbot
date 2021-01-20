@@ -5,6 +5,7 @@ import math
 import random
 import itertools
 import os
+import subprocess
 import re
 import config
 from helper import *
@@ -14,16 +15,10 @@ from discord.ext import commands
 import time
 import youtube_dl
 import mysql.connector as mysql
+import traceback
 
 #remake tables using splice
 #conn = sqlite3.connect('data.db')
-conn = mysql.connect(
-	host = config.host,
-	user = config.user,
-	passwd = config.pw,
-	database = config.db
-	)
-c = conn.cursor(buffered=True)
 
 client = commands.Bot(command_prefix = '!')
 
@@ -32,21 +27,21 @@ youtube_dl.utils.bug_reports_message = lambda: ''
 
 
 ytdl_format_options = {
-    'format': 'bestaudio/best',
-    'outtmpl': 'songs/%(extractor)s-%(id)s-%(title)s.%(ext)s',
-    'restrictfilenames': True,
-    'noplaylist': True,
-    'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
-    'quiet': True,
-    'no_warnings': True,
-    'default_search': 'auto',
-    'source_address': '0.0.0.0' # bind to ipv4 since ipv6 addresses cause issues sometimes
+	'format': 'bestaudio/best',
+	'outtmpl': 'songs/%(extractor)s-%(id)s-%(title)s.%(ext)s',
+	'restrictfilenames': True,
+	'noplaylist': True,
+	'nocheckcertificate': True,
+	'ignoreerrors': False,
+	'logtostderr': False,
+	'quiet': True,
+	'no_warnings': True,
+	'default_search': 'auto',
+	'source_address': '0.0.0.0' # bind to ipv4 since ipv6 addresses cause issues sometimes
 }
 
 ffmpeg_options = {
-	'options': '-vn -af loudnorm=I=-16:TP=-1.5:LRA=11',
+	'options': '-vn -af loudnorm=I=-25:TP=-1.5:LRA=5',
 	'before_options': '-ss 0'
 }
 
@@ -85,10 +80,17 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
 		filename = data['url'] if stream else ytdl.prepare_filename(data)
 		filename = filename.strip("songs\\")
-		print(filename)
-		c.execute('update weebquiz set filename = "'+filename+'" where number = '+str(num))
-		conn.commit()
-		
+		if(data['duration'] > 90):
+			print(filename)
+			c.execute('update weebquiz set filename = "'+filename+'" where number = '+str(num))
+			conn.commit()
+			return filename
+		else:
+			print(filename)
+			c.execute('update weebquiz set filename = "'+filename+'" where number = '+str(num))
+			conn.commit()
+			return False
+
 
 
 
@@ -103,18 +105,25 @@ async def on_ready():
 @client.command(pass_context = True)
 @commands.cooldown(1, 2, commands.BucketType.user)
 async def rewrite(ctx, *argv):
-	# c.execute('SELECT * FROM WeebQuiz')
-	# weebQuiz = c.fetchall()
-	
+
+	toRewrite = []
 	try:
-		for x in range(1,185):
+		c.execute('select * from weebquiz where number > 186')
+		weeb = c.fetchall()
+		for x in weeb:
 			print(x)
-			c.execute('SELECT url FROM WeebQuiz WHERE number = '+str(x))
-			url = c.fetchone()[0]
-			await YTDLSource.from_url2(url, x, loop=client.loop)
+			url = x[1]
+			number = str(x[2])
+			rewrite = await YTDLSource.from_url2(url, number, loop=client.loop)
+			if(rewrite):
+				toRewrite.append(rewrite)
+		print('rewriting...')
+		print(toRewrite)
+		for y in toRewrite:
+			trim(y)
 	except Exception as e:
 		print(e)
-	
+
 	# for x in range(3,184):
 		# c.execute('SELECT filename from weebquiz where number = '+ str(x-1))
 		# filename = c.fetchone()[0]
@@ -128,7 +137,7 @@ async def connect(ctx, *argv):
 	if ctx.voice_client is not None:
 		return await ctx.voice_client.move_to(channel)
 	await channel.connect()
-	
+
 @client.command(pass_context = True)
 @commands.cooldown(1, 2, commands.BucketType.user)
 async def disconnect(ctx, *argv):
@@ -138,11 +147,11 @@ async def disconnect(ctx, *argv):
 async def play(ctx, *argv):
 	"""Plays a file from the local filesystem"""
 
-	source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("songs/youtube-0Vwwr3VGsYg-Re_-ZERO_-_Starting_Life_in_Another_World_Opening_Theme_Redo.webm"))
+	source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("songs/youtube-bu8hmIjf1VU-Danny_McCarthy_-_Silver_Scrapes.webm"))
 	ctx.voice_client.play(source, after=lambda e: print('Player error: %s' % e) if e else None)
 
-	await ctx.send('Now playing: {}'.format(query))	
-	
+	await ctx.send('Now playing: {}'.format(query))
+
 
 @client.command(pass_context = True)
 async def stream(ctx, url):
@@ -159,13 +168,13 @@ async def stream(ctx, url):
 async def volume(ctx, volume):
 	voice = ctx.voice_client
 	voice.source.volume = float(volume)/100
-	
+
 @client.command(pass_context = True)
 @commands.cooldown(1, 2, commands.BucketType.user)
 async def stop(ctx, *argv):
 	ctx.voice_client.stop()
-	
-	
+
+
 @client.command(pass_context = True)
 async def okay(ctx):
 	channel = ctx.message.author.voice.channel
@@ -174,7 +183,7 @@ async def okay(ctx):
 
 	msg = await client.wait_for('message', check=check)
 	await channel.send('Hello {.author}!'.format(msg))
-	
+
 @client.command(pass_context = True)
 async def add(ctx, *argv):
 	if len(argv) == 2:
@@ -182,7 +191,7 @@ async def add(ctx, *argv):
 			aliases = argv[1]
 			url = argv[0]
 			c.execute("INSERT INTO WeebQuiz (answers,url) VALUES ('"+aliases+"', '"+url+"')")
-			conn.commit()	
+			conn.commit()
 			await ctx.send('Entry Successfully saved to database')
 		except Exception as e:
 			await ctx.send('Failed to submit the entry')
@@ -190,13 +199,13 @@ async def add(ctx, *argv):
 	else:
 		try:
 			await ctx.send('Please enter the url of the song:')
-			
+
 			def check(m):
 				return m.channel == ctx.message.channel and m.author == ctx.message.author
-			
+
 			msg = await client.wait_for('message', check=check, timeout = 20.0)
 			url = msg.content
-			
+
 			await ctx.send('Please enter the acceptable answers for this song in one message seperated by commas:')
 			msg = await client.wait_for('message', check=check, timeout = 20.0)
 			aliases = msg.content
@@ -205,7 +214,7 @@ async def add(ctx, *argv):
 			await ctx.send('Successfully saved to database')
 		except Exception as e:
 			await ctx.send('Failed to submit entry')
-	
+
 @client.command(pass_context = True)
 async def quiz(ctx, genre = None, *argv):
 		if ctx.voice_client is None:
@@ -213,49 +222,83 @@ async def quiz(ctx, genre = None, *argv):
 		loop = True
 		scoreboard = []
 		unique = []
+		if(genre):
+			conn = mysql.connect(
+				host = config.host,
+				user = config.user,
+				passwd = config.pw,
+				database = config.db
+				)
+			c = conn.cursor(buffered=True)
+			c.execute('SELECT * FROM WeebQuiz where genre = "'+genre+'" ORDER BY RAND() LIMIT 1')
+			weebQuiz = c.fetchall()
+			if (len(weebQuiz) == 0):
+				await ctx.send("That's not a valid genre b-b-baka")
+				loop = False
+			conn.close()
 		while(loop):
 			try:
-				if(genre):
-					c.execute('SELECT * FROM WeebQuiz where genre = "'+genre+'" ORDER BY RAND() LIMIT 1')
-					weebQuiz = c.fetchall()
-					if (len(weebQuiz) == 0):
-						await ctx.send("That's not a valid genre b-b-baka")
-						break
-				else:
-					c.execute('SELECT * FROM WEEBQUIZ ORDER BY RAND() LIMIT 1')
-					weebQuiz = c.fetchall()
-				entry = weebQuiz[0][2]
+
 				uniqueLoop = True
-				print(unique)
+				tries = 0
+				print('enter loop')
 				while(uniqueLoop):
-					if(any(x == entry for x in unique)):
-						continue
-					else:
-						uniqueLoop = False
+					try:
+						conn = mysql.connect(
+							host = config.host,
+							user = config.user,
+							passwd = config.pw,
+							database = config.db
+							)
+						c = conn.cursor(buffered=True)
+						tries = tries + 1
+						print(tries)
+						if(genre):
+							c.execute('SELECT * FROM WeebQuiz where genre = "'+genre+'" ORDER BY RAND() LIMIT 1')
+							weebQuiz = c.fetchall()
+						else:
+							c.execute('SELECT * FROM WEEBQUIZ ORDER BY RAND() LIMIT 1')
+							weebQuiz = c.fetchall()
+						entry = weebQuiz[0][2]
+						if(any(x == entry for x in unique)):
+							continue
+						else:
+							uniqueLoop = False
+					except:
+						traceback.print_exc()
 
 				unique.append(entry)
 				entry = str(entry)
 				print(entry)
+				print(unique)
 				fileName = weebQuiz[0][3]
 				answers = re.split(',|, ',weebQuiz[0][0])
 				print(answers)
 				random_offset = random.randrange(1,60)
 				ffmpeg_options['before_options'] = '-ss ' +str(random_offset)
 				print(ffmpeg_options['before_options'])
-				
+
+
 				source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("songs/" + fileName,**ffmpeg_options))
 				ctx.voice_client.play(source, after=lambda e: print('Player error: %s' % e) if e else None)
 				channel = ctx.message.channel
-				await ctx.send('Now playing: 1')
+
+				await ctx.send('Guess this song!')
 
 				def check(m):
 					return m.channel == channel and any(x == m.content.lower() for x in answers) or m.content.lower() == '!end'
 				try:
 					msg = await client.wait_for('message', check=check, timeout = 20.0)
 					if msg.content == '!end':
+						ctx.voice_client.stop()
 						loop = False
+						break
 					else:
-						await ctx.send(msg.author.mention + ' You got it right!')
+						printString = msg.author.mention + ' You got it right!'
+						ctx.voice_client.stop()
+						source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("songs/correct sound effect.mp3"))
+						ctx.voice_client.play(source, after=lambda e: print('Player error: %s' % e) if e else None)
+
 						if(len(scoreboard)==0):
 							scoreboard.append([msg.author.name, 1])
 						else:
@@ -268,21 +311,48 @@ async def quiz(ctx, genre = None, *argv):
 								index += 1
 							if (present):
 								scoreboard[index][1] += 1
-								if (scoreboard[index][1] == 1000):
+								if (scoreboard[index][1] == 5):
 									loop = False
-									await ctx.send(msg.author.mention + ' has won the game!')
+									await ctx.send(':trophy: :trophy:' +msg.author.mention + ' has won the game!:trophy: :trophy:')
+									ctx.voice_client.stop()
+
+									source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("songs/Final Fantasy VII - Victory Fanfare [HQ].mp3"))
+									ctx.voice_client.play(source, after=lambda e: print('Player error: %s' % e) if e else None)
+									time.sleep(4)
+									ctx.voice_client.stop()
+
+
+									break
 							else:
 								scoreboard.append([msg.author.name, 1])
-						printString = ''
+						printString += '**\nCURRENT SCORE**:\n```\n'
 						for x in scoreboard:
 							printString += str(x[0]) + ' ' + str(x[1]) + '\n'
+						printString = printString + '```'
 						await ctx.send(printString)
 				except asyncio.TimeoutError:
 					await ctx.send('No one got this one!')
-				ctx.voice_client.stop()
-			except Exception as e:
-				print(e)
 
+
+
+				ctx.voice_client.stop()
+				conn.close()
+				time.sleep(2)
+			except:
+				traceback.print_exc()
+
+
+def trim(filename):
+	os.chdir('D:/discordbot/songs')
+	filename2 = filename.split('.')
+	outputFile = ""
+	for x in filename2:
+		outputFile = outputFile + '2.' + x
+	print(outputFile)
+	subprocess.call(['ffmpeg', '-i', filename, '-t', '00:01:30.00', outputFile])
+	os.remove(filename)
+	c.execute('update weebquiz set filename = "'+outputFile+'" where filename = "'+filename+'"')
+	conn.commit()
 
 
 client.run(config.TOKEN)

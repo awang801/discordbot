@@ -357,8 +357,8 @@ async def buy(ctx, *argv):
 			
 		else:
 			await ctx.send('Whatchu tryin to pull here. Get yo poor lookin ass outta my face')
-	except Exception as e:
-		print(e)
+	except:
+		traceback.print_exc()
 
 @client.command(pass_context = True)
 @commands.cooldown(1, 2, commands.BucketType.user)
@@ -452,30 +452,30 @@ async def sell(ctx, *argv):
 				
 				#calculate sell price
 				c.execute('SELECT base_price FROM Items WHERE item = "' + item +'"')
-				price = c.fetchone()[0]
+				price = float(c.fetchone()[0])
 				
 				c.execute('SELECT area FROM characters WHERE id = "'+str(ctx.message.author.id)+'"')
 				area = c.fetchone()[0]
 				try:
 					c.execute('SELECT sell_multiplier FROM DEMAND WHERE item = "'+ item +'" AND area = "' + area +'"')
-					mult = c.fetchone()[0]
+					mult = float(c.fetchone()[0])
 					
 				except:
 					mult = 1
 
 				try:
 					c.execute('SELECT quality_multiplier FROM DEMAND WHERE ITEM = "'+ item +'" AND area = "'+ area +'"')
-					mult2 = c.fetchone()[0]
+					mult2 = float(c.fetchone()[0])
 								
 					qualityMult = mult2 -1
 				except:
-					qualityMult = 1
+					qualityMult = 0
 					
-				print(mult)
-				print(qualityMult)
 				qualityPay = math.floor(qualityMult * quality)
 				demandPay = math.floor((mult * price) - price)
 				pricePer = math.floor(qualityPay + demandPay + price)
+				
+
 				#total money received for the sale
 				saleTotal = math.floor(pricePer * amt)
 				
@@ -557,8 +557,8 @@ async def sell(ctx, *argv):
 				await ctx.send("Okay let's try to sell an amount you actually have")
 		else:
 			await ctx.send("Please input the items in the following order: \n item name --> amount you wish to sell of said item\n Example: ```!sell shrimp 100 42```")
-	except Exception as e:
-		print(e)
+	except:
+		traceback.print_exc()
 
 
 @client.command(aliases=['i'], brief = 'Displays your inventory', Description = 'Displays all items that are in your inventory as well as your wagon. Your money is displayed at the top', pass_context = True)
@@ -991,7 +991,7 @@ def cityFound(city, charName):
 	hiddenCities = c.fetchone()[0]
 	found = False
 	if(hiddenCities):
-		c.execute('SELECT city FROM citiesfound WHERE character ="'+charName+'"')
+		c.execute('SELECT city FROM citiesfound WHERE characters ="'+charName+'"')
 		cities = c.fetchall()
 		for value in cities:
 			if(value[0] == city):
@@ -1195,10 +1195,10 @@ def wagonSpace(charName):
 		
 def getPrice(item, area):
 	c.execute('SELECT base_price FROM Items WHERE item = "' + item +'"')
-	price = c.fetchone()[0]
+	price = float(c.fetchone()[0])
 	try:
 		c.execute('SELECT buy_multiplier FROM Shop WHERE item = "'+ item +'" AND area = "' + area +'"')
-		mult = c.fetchone()[0]
+		mult = float(c.fetchone()[0])
 		price = price * mult
 	except:
 		pass
