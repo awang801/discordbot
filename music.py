@@ -16,11 +16,16 @@ import time
 import youtube_dl
 import mysql.connector as mysql
 import traceback
+from gtts import gTTS
 
 #remake tables using splice
 #conn = sqlite3.connect('data.db')
 
-client = commands.Bot(command_prefix = '!')
+intent = discord.Intents.default()
+intent.members = True
+intent.message_content = True
+
+client = commands.Bot(command_prefix = '!', description = "music", intents = intent)
 
 
 youtube_dl.utils.bug_reports_message = lambda: ''
@@ -175,50 +180,42 @@ async def stop(ctx, *argv):
     ctx.voice_client.stop()
 
 
-@client.command(pass_context = True)
-async def okay(ctx):
-    channel = ctx.message.author.voice.channel
-    def check(m):
-        return m.content == ctx.author and m.channel == channel
 
-    msg = await client.wait_for('message', check=check)
-    await channel.send('Hello {.author}!'.format(msg))
+# @client.command(pass_context = True)
+# async def add(ctx, *argv):
+    # if len(argv) == 2:
+        # try:
+            # aliases = argv[1]
+            # url = argv[0]
+            # c.execute("INSERT INTO WeebQuiz (answers,url) VALUES ('"+aliases+"', '"+url+"')")
+            # conn.commit()
+            # await ctx.send('Entry Successfully saved to database')
+        # except Exception as e:
+            # await ctx.send('Failed to submit the entry')
 
-@client.command(pass_context = True)
-async def add(ctx, *argv):
-    if len(argv) == 2:
-        try:
-            aliases = argv[1]
-            url = argv[0]
-            c.execute("INSERT INTO WeebQuiz (answers,url) VALUES ('"+aliases+"', '"+url+"')")
-            conn.commit()
-            await ctx.send('Entry Successfully saved to database')
-        except Exception as e:
-            await ctx.send('Failed to submit the entry')
+    # else:
+        # try:
+            # await ctx.send('Please enter the url of the song:')
 
-    else:
-        try:
-            await ctx.send('Please enter the url of the song:')
+            # def check(m):
+                # return m.channel == ctx.message.channel and m.author == ctx.message.author
 
-            def check(m):
-                return m.channel == ctx.message.channel and m.author == ctx.message.author
+            # msg = await client.wait_for('message', check=check, timeout = 20.0)
+            # url = msg.content
 
-            msg = await client.wait_for('message', check=check, timeout = 20.0)
-            url = msg.content
-
-            await ctx.send('Please enter the acceptable answers for this song in one message seperated by commas:')
-            msg = await client.wait_for('message', check=check, timeout = 20.0)
-            aliases = msg.content
-            c.execute("INSERT INTO WeebQuiz (answers,url) VALUES ('"+aliases+"', '"+url+"')")
-            conn.commit()
-            await ctx.send('Successfully saved to database')
-        except Exception as e:
-            await ctx.send('Failed to submit entry')
+            # await ctx.send('Please enter the acceptable answers for this song in one message seperated by commas:')
+            # msg = await client.wait_for('message', check=check, timeout = 20.0)
+            # aliases = msg.content
+            # c.execute("INSERT INTO WeebQuiz (answers,url) VALUES ('"+aliases+"', '"+url+"')")
+            # conn.commit()
+            # await ctx.send('Successfully saved to database')
+        # except Exception as e:
+            # await ctx.send('Failed to submit entry')
 
 @client.command(pass_context = True)
 async def quiz(ctx, genre = None, *argv):
         if ctx.voice_client is None:
-            await ctx.author.voice.channel.connect()
+            await ctx.author.voice.channel.connect(reconnect=True)
         loop = True
         scoreboard = []
         unique = []
@@ -277,8 +274,11 @@ async def quiz(ctx, genre = None, *argv):
                 random_offset = random.randrange(1,60)
                 ffmpeg_options['before_options'] = '-ss ' +str(random_offset)
                 print(ffmpeg_options['before_options'])
+                    
+                if ctx.voice_client is None:
+                    await ctx.author.voice.channel.connect(reconnect=True)  
 
-
+                    
                 source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("songs/" + fileName,**ffmpeg_options))
                 ctx.voice_client.play(source, after=lambda e: print('Player error: %s' % e) if e else None)
                 channel = ctx.message.channel
@@ -288,7 +288,7 @@ async def quiz(ctx, genre = None, *argv):
                 def check(m):
                     return m.channel == channel and any(x == m.content.lower() for x in answers) or m.content.lower() == '!end'
                 try:
-                    msg = await client.wait_for('message', check=check, timeout = 20.0)
+                    msg = await client.wait_for('message', check=check, timeout = 20)
                     if msg.content == '!end':
                         ctx.voice_client.stop()
                         loop = False
@@ -310,11 +310,20 @@ async def quiz(ctx, genre = None, *argv):
                                 index += 1
                             if (present):
                                 scoreboard[index][1] += 1
-                                if (scoreboard[index][1] == 5):
+                                if (scoreboard[index][1] == 10):
                                     loop = False
                                     await ctx.send(':trophy: :trophy:' +msg.author.mention + ' has won the game!:trophy: :trophy:')
                                     ctx.voice_client.stop()
-
+                                    announcement= "Congratulations " + msg.author.name + " You win!"
+                                    
+                                    announce = gTTS(text=announcement,lang='ja', slow=False)
+                                    
+                                    announce.save('songs/winner.mp3')
+                                    
+                                    source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("songs/winner.mp3"))
+                                    ctx.voice_client.play(source, after=lambda e: print('Player error: %s' % e) if e else None)
+                                    await asyncio.sleep(5)
+                                    ctx.voice_client.stop()
                                     source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("songs/Final Fantasy VII - Victory Fanfare [HQ].mp3"))
                                     ctx.voice_client.play(source, after=lambda e: print('Player error: %s' % e) if e else None)
                                     await asyncio.sleep(10)
