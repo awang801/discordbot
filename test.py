@@ -3,11 +3,13 @@ import sqlite3
 import random
 import asyncio
 import mal
-from myanimelist.session import Session
+# from myanimelist.session import Session
 from prettytable import PrettyTable
 from prettytable import from_db_cursor
+from PIL import Image, ImageFilter, ImageDraw, ImageFont  # imports the library
 
-mal = Session()
+
+# mal = Session()
 conn = sqlite3.connect('data.db')
 c = conn.cursor()
 
@@ -19,7 +21,36 @@ def main():
 	for x in range(1, 4):
 		steps.append(['cut', x])
 	print(len(steps))
-	
+
+def imageTest():
+    img = Image.open("images/blank_jeopardy_board.png")
+    font = ImageFont.truetype("fonts/GogatingBookExtrabold-23dl.ttf", 75)
+    draw = ImageDraw.Draw(img)
+    base_score = 100
+    draw.text((40,140), str(base_score), (255,255,0), font = font)
+    img.save("images/output0.png")
+    index = 0
+    for x in range(5):
+        for y in range(6):
+            if x ==0 and y == 0:
+                continue
+            else:
+
+                print(str(x) + "," + str(y))
+                img = Image.open("images/output" + str(index) + ".png")
+                index+=1
+                font = ImageFont.truetype("fonts/GogatingBookExtrabold-23dl.ttf", 75)
+                draw = ImageDraw.Draw(img)
+                score = base_score * (x+1)
+                newX = 40 + (y*142)
+                newY = 140 + (x*110)
+                draw.text((newX,newY), str(score), (255,255,0), font = font)
+                img.save("images/output" + str(index) + ".png")
+    img = Image.open("images/output29.png")
+    img2 = Image.open("images/blue_box.png")
+    newImg = img.copy()
+    newImg.paste(img2, (35, 130))
+    newImg.save("images/test.png")
 def changeTension():
 	global tension
 	tension += 5
@@ -117,5 +148,5 @@ def test(charName):
 	
 
 #--------Execution--------#
-main()
+imageTest()
 

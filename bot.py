@@ -25,7 +25,11 @@ conn = mysql.connect(
 
 c = conn.cursor(buffered=True)
 
-client = commands.Bot(command_prefix = '!')
+intent = discord.Intents.default()
+intent.members = True
+intent.message_content = True
+
+client = commands.Bot(command_prefix = '!', description = "music", intents = intent)
 
 #@client.event
 #async def on_message(message):

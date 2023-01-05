@@ -17,6 +17,8 @@ import youtube_dl
 import mysql.connector as mysql
 import traceback
 from gtts import gTTS
+from PIL import Image, ImageFilter, ImageDraw, ImageFont  # imports the library
+
 
 #remake tables using splice
 #conn = sqlite3.connect('data.db')
@@ -350,6 +352,13 @@ async def quiz(ctx, genre = None, *argv):
             except:
                 traceback.print_exc()
 
+# async def jeopardy(ctx, *argv):
+    # img = Image.open(images/blank_jeopardy_board.png)
+    # font = ImageFont.truetype("PleasantlyPlump-pRv1.ttf", 24)
+    # draw = ImageDraw.Draw(img)
+    # score = "100"
+    # draw.text((0,150), score, (0,0,0) font = font)
+    # img.save("output.png")
 
 def trim(filename):
     os.chdir('D:/discordbot/songs')
@@ -364,4 +373,21 @@ def trim(filename):
     conn.commit()
 
 
-client.run(config.TOKEN)
+extensions = ['jeopardy']
+
+async def load(extensions):
+    async with client:
+        if __name__ == '__main__':
+            for extension in extensions:
+                try:
+                    await client.load_extension(extension)
+                    print('Loaded extension: {}'.format(extension))
+                except Exception as error:
+                    print('{} cannot be loaded. [{}]'.format(extension, error))
+        await client.start(config.TOKEN)
+
+
+
+asyncio.run(load(extensions))
+
+
