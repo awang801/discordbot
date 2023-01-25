@@ -216,6 +216,7 @@ async def stop(ctx, *argv):
 
 @client.command(pass_context = True)
 async def quiz(ctx, genre = None, *argv):
+    try:
         if ctx.voice_client is None:
             await ctx.author.voice.channel.connect(reconnect=True)
         loop = True
@@ -351,6 +352,8 @@ async def quiz(ctx, genre = None, *argv):
                 await asyncio.sleep(2)
             except:
                 traceback.print_exc()
+    except:
+        traceback.print_exc()
 
 # async def jeopardy(ctx, *argv):
     # img = Image.open(images/blank_jeopardy_board.png)
