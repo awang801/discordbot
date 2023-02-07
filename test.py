@@ -17,11 +17,26 @@ c = conn.cursor()
 tension = 0
 
 def main():
-	steps = []
-	for x in range(1, 4):
-		steps.append(['cut', x])
-	print(len(steps))
-
+    input1 = input()
+    row = int(input1[0]) - 1
+    column = int(input1[1]) - 1
+    print(row)
+    print(column)
+    # printString = ""
+    # current = False
+    # players = {'a':2, 'b':4, 'c':1, 'd':5, 'e':9, 'f':11, 'g':49, 'h': 1, 'i':1, 'j':2}
+    # scores = sorted(players.items(), key=lambda x:x[1])
+    # for x in scores:
+        # if x[1] == 1:
+            # current = x[1]
+            # printString += x[0] + ","
+        # elif x[1] == current:
+            # printString += x[0] + ","
+        # else:
+            # current = x[1]
+            # printString += "\n" + x[0] + ","
+    # print(printString)
+    
 def imageTest():
     img = Image.open("images/blank_jeopardy_board.png")
     font = ImageFont.truetype("fonts/GogatingBookExtrabold-23dl.ttf", 75)
@@ -148,5 +163,5 @@ def test(charName):
 	
 
 #--------Execution--------#
-imageTest()
+main()
 

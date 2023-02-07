@@ -22,9 +22,13 @@ from PIL import Image, ImageFilter, ImageDraw, ImageFont  # imports the library
 
 #defined in bot.py globally
 invalidBuzzUserIds = [] 
+inGame = False
 teamGame = False
-teams = [[],[],[]]
-playingUsers = []
+teams = {}
+score = {}
+teamCount = 0
+buzzed = []
+gameOver = False
 
 class Buzzer(discord.ui.View):
     def __init__(self):
@@ -34,10 +38,10 @@ class Buzzer(discord.ui.View):
     
     @discord.ui.button(label="🔴 Buzzer", style=discord.ButtonStyle.blurple)
     async def buzz(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if (interaction.user.id not in playingUsers):
+        if (interaction.user.name not in teams.keys()):
             await interaction.response.send_message("You aren't registered to play", ephemeral = True)
             return
-        if (interaction.user.id in invalidBuzzUserIds):
+        if (interaction.user.name in invalidBuzzUserIds):
             await interaction.response.send_message("You can't buzz in anymore this round", ephemeral = True)
             return
         if (self.firstClickUser == None):
@@ -46,16 +50,10 @@ class Buzzer(discord.ui.View):
             await interaction.response.edit_message(view=self)       
             await interaction.channel.send("<@{}>".format(self.firstClickUser) + " buzzes in!")
             
-            #if using teams, add all user ids from that team to the invalidBuzzUserIds so they can't buzz
-            if (teamGame):
-                for team in teams:
-                    if (self.firstClickUser in team):
-                        invalidBuzzUserIds.extend(team)
-            else:
-                #add user id to list so they can't buzz until invalidBuzzUserIds is reset
-                invalidBuzzUserIds.append(self.firstClickUser)
+            
 
 
+#sorted(footballers_goals.items(), key=lambda x:x[1])
 
 class jeopardy(commands.Cog):
     def __init__(self, client):
@@ -64,8 +62,53 @@ class jeopardy(commands.Cog):
     @commands.command()
     async def test1(self, ctx):
         try:
-            generateBoard(100)
-            await ctx.send("pick a category:", file = discord.File("images/output.png"))
+            global inGame
+            if(inGame == False):
+                inGame = True
+                generateBoard(100)
+                while(inGame):
+                    await ctx.send("pick a category:", file = discord.File("images/output.png"))
+                    #gamemaster picks a category
+                    input1 = input()
+                    row = int(input1[0]) - 1
+                    column = int(input1[1]) - 1
+                    print(row)
+                    print(column)
+                    cover (row, column)
+                    await ctx.send("pick a category:", file = discord.File("images/output.png"))
+                    inGame = False
+                
+            else:
+                await ctx.send("There is already a game in session")
+        except Exception as e:
+            print(e)
+            
+    @commands.command()
+    async def score(self, ctx):
+        try:
+            printString = ""
+            total = 0
+            current = False
+            teamSort = sorted(teams.items(), key=lambda x:x[1])
+            for x in teamSort:
+                if x[1] == 1:
+                    printString += "**\nCURRENT SCORE**:\n```\n"
+                    printString += "--TEAM " + str(x[1]) + "--\n"
+                    current = x[1]
+                    printString += (str(x[0]) + " " + str(score[x[0]]) + "\n")
+                    total = score[x[0]]
+                elif x[1] == current:
+                    printString += str(score[x[0]])
+                    total += score[x[0]]
+                else:
+                    current = x[1]
+                    printString += "total " + str(total) + "\n"
+                    printString += ('--TEAM ' + str(x[1]) + "--\n")
+                    printString += (str(x[0]) + " " + str(score[x[0]]) + "\n")
+                    total = score[x[0]]
+            printString += "total " + str(total) + "\n"
+            printString += "```"
+            await ctx.send(printString)
         except Exception as e:
             print(e)
     #command to use if the first person that buzzed got it wrong (displays another buzzer)
@@ -79,34 +122,33 @@ class jeopardy(commands.Cog):
     #Instead of using a command for this, just do this whenever a new question is asked
     @commands.command()
     async def resetbuzz(self, ctx):
-        invalidBuzzUserIds.clear()
         await ctx.reply("Cleared buzz list")
 
     @commands.command()
     async def add(self, ctx, user, teamNumber=0):
-        user = ctx.message.mentions[0]
-        if (user == None):
-            await ctx.send('Need to @ someone to add')
-        if (user.id not in playingUsers):
-            playingUsers.append(user.id)            
-        else: #player has already been added before, remove them from any teams so we don't put them in two teams
-            for idx, team in enumerate(teams):
-                if (user.id in team):
-                    team.remove(user.id)
-                    await ctx.send("Removed <@{}> from team {}".format(user.id, idx + 1))
+        try:
+            user = ctx.message.mentions[0]
+            if (user == None):
+                await ctx.send('Need to @ someone to add')
+            for key in teams:
+                if (user.name == key):
+                    if(teams[key] != teamNumber):
+                        await ctx.send("Added <@{}> from team {} to team {}".format(user.name, teams[key], teamNumber))
+                        teams[key] = teamNumber
+                    else:
+                        await ctx.send("User already added")
 
-        if (teamNumber > 0 and teamNumber <= len(teams)):
-            teamIndex = teamNumber - 1
-            if (user.id not in teams[teamIndex]):
-                teams[teamIndex].append(user.id)
-                await ctx.send("Added <@{}> to team {}".format(user.id, teamNumber))
-        
-        if (teamNumber == 0):
-            await ctx.send("Added <@{}> to game".format(user.id))
-
-        if (teamNumber > len(teams)):
-            await ctx.send("Team number too high")
-           
+            if (teamNumber > 0):
+                if (user.name not in teams.keys()):
+                    teams[user.name] = teamNumber
+                    score[user.name] = 0
+                    await ctx.send("Added {} to team {}".format(user.name, teamNumber))
+            
+            if (teamNumber == 0):
+                await ctx.send("Added {} to game without a team".format(user.name))
+        except Exception as e:
+            print(e)
+       
 
 async def setup(client):
 	await client.add_cog(jeopardy(client))
@@ -147,9 +189,11 @@ def questionAnswered(coordinate):
     return
     
 #covers one block
-def cover():
-    img = Image.open("images/output29.png")
+def cover(x, y):
+    img = Image.open("images/output.png")
     img2 = Image.open("images/blue_box.png")
     newImg = img.copy()
-    newImg.paste(img2, (35, 130))
-    newImg.save("images/test.png")
+    newX = 35 + (y*142)
+    newY = 130 + (x*110)
+    newImg.paste(img2, (newX, newY))
+    newImg.save("images/output.png")
