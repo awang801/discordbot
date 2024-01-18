@@ -115,6 +115,13 @@ async def rewrite(ctx, *argv):
 
     toRewrite = []
     try:
+        conn = mysql.connect(
+            host = config.host,
+            user = config.user,
+            passwd = config.pw,
+            database = config.db
+            )
+        c = conn.cursor(buffered=True)
         c.execute('select * from weebquiz where number > 186')
         weeb = c.fetchall()
         for x in weeb:
@@ -153,22 +160,29 @@ async def disconnect(ctx, *argv):
 @client.command(pass_context = True)
 async def play(ctx, *argv):
     """Plays a file from the local filesystem"""
+    try:
 
-    source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("songs/youtube-bu8hmIjf1VU-Danny_McCarthy_-_Silver_Scrapes.webm"))
-    ctx.voice_client.play(source, after=lambda e: print('Player error: %s' % e) if e else None)
+        source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio("songs/youtube-bu8hmIjf1VU-Danny_McCarthy_-_Silver_Scrapes.webm"))
+        ctx.voice_client.play(source, after=lambda e: print('Player error: %s' % e) if e else None)
 
-    await ctx.send('Now playing: {}'.format(query))
+        await ctx.send('Now playing: {}'.format(query))
+    except:
+        traceback.print_exc()
 
 
 @client.command(pass_context = True)
 async def stream(ctx, url):
     """Streams from a url (same as yt, but doesn't predownload)"""
+    try:
+        if ctx.voice_client is None:
+                await ctx.author.voice.channel.connect(reconnect=True)
+        async with ctx.typing():
+            player = await YTDLSource.from_url(url, loop=client.loop, stream=True)
+            ctx.voice_client.play(player, after=lambda e: print('Player error: %s' % e) if e else None)
 
-    async with ctx.typing():
-        player = await YTDLSource.from_url(url, loop=client.loop, stream=True)
-        ctx.voice_client.play(player, after=lambda e: print('Player error: %s' % e) if e else None)
-
-    await ctx.send('Now playing: {}'.format(player.title))
+        await ctx.send('Now playing: {}'.format(player.title))
+    except:
+        traceback.print_exc()
 
 @client.command(pass_context = True)
 @commands.cooldown(1, 2, commands.BucketType.user)
