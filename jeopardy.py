@@ -22,7 +22,7 @@ import textwrap
 import numpy as np
 
 #defined in bot.py globally
-invalidBuzzUserIds = [] 
+invalidBuzzUserIds = {} 
 inGame = False
 teamGame = True
 teams = {}
@@ -35,13 +35,14 @@ boardNum = 0
 baseScore = 0
 dailyDouble = (0,0)
 class Buzzer(discord.ui.View):
-    def __init__(self):
+    def __init__(self, ctx):
         super().__init__()
         self.value = None
         self.firstClickUser = None
         self.userName = None
-        self.ctx = None
-        self.timeout = None
+        self.ctx = ctx
+        self.timeout = 30
+        self.buzzing = True
     
     @discord.ui.button(label="🔴 Buzzer", style=discord.ButtonStyle.blurple)
     async def buzz(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -49,7 +50,7 @@ class Buzzer(discord.ui.View):
             if (interaction.user.name not in teams.keys()):
                 await interaction.response.send_message("You aren't registered to play", ephemeral = True)
                 return
-            if (interaction.user.name in invalidBuzzUserIds):
+            if (interaction.user.name in invalidBuzzUserIds.keys()):
                 await interaction.response.send_message("You can't buzz in anymore this round", ephemeral = True)
                 return
             if (self.firstClickUser == None):
@@ -66,15 +67,19 @@ class Buzzer(discord.ui.View):
                 if (teamGame):
                     for x in teams:
                         if (teams[x] == team):
-                            invalidBuzzUserIds.append(x)
+                            invalidBuzzUserIds[interaction.user.name] = team
                 else:
                     #add user id to list so they can't buzz until invalidBuzzUserIds is reset
-                    invalidBuzzUserIds.append(interaction.user.name)
+                    invalidBuzzUserIds[interaction.user.name] = 0
+            self.stop()
             return(interaction.user.name)
+
         except Exception as e:
             print(e)
     async def on_timeout(self):
+        self.buzzing = False
         self.stop()
+        
         
 
 
@@ -144,8 +149,8 @@ class jeopardy(commands.Cog):
                         
 
                         while(buzzing):
-                            view = Buzzer()
                             try:
+                                view = Buzzer(ctx)
                                 if(q[1] == "audio"):
                                     try:
                                         if ctx.voice_client is None:
@@ -156,7 +161,13 @@ class jeopardy(commands.Cog):
                                     except:
                                         traceback.print_exc()
                                 await ctx.reply(view=view)
-                                input2 = await self.client.wait_for('message', check=adminCheck, timeout=20)
+                                buzz = await view.wait()
+                                if(buzz):
+                                    raise asyncio.TimeoutError
+                                if (ctx.voice_client):        
+                                    if(ctx.voice_client.is_playing()):
+                                        ctx.voice_client.stop()
+                                input2 = await self.client.wait_for('message', check=adminCheck)
                                 if (input2.content == "y"):
                                     invalidBuzzUserIds.clear()
                                     buzzing = False
@@ -166,6 +177,8 @@ class jeopardy(commands.Cog):
                                 elif(input2.content == "n"):
                                     score[view.userName] -= ((row+1)*baseScore)
                                     await ctx.send(scoreboard())
+                                    if invalidBuzzUserIds == teams:
+                                        raise asyncio.TimeoutError
                                 elif(input2.content == "cancel"):
                                     buzzing = False
                                     invalidBuzzUserIds.clear()
@@ -182,6 +195,7 @@ class jeopardy(commands.Cog):
                             ctx.voice_client.stop()
                     cover (row, column)
                     if(np.sum(board) == 0):
+                        await ctx.send(scoreboard())
                         inGame = False
                 
             else:
@@ -295,7 +309,7 @@ def displayQuestion(x,y):
     qType = out[1]
     qLink = out[2]
     print(question)
-    MAX_W, MAX_H = 1920, 1400
+    MAX_W, MAX_H = 1920, 1500
     im = Image.new('RGB', (MAX_W, MAX_H), ImageColor.getrgb("#060ce9"))
     draw = ImageDraw.Draw(im)
     para = textwrap.wrap(question, width=42,replace_whitespace=False)
@@ -338,10 +352,14 @@ def displayQuestion(x,y):
                 new_w = int(ratio * 1000)
                 im2 = im2.resize((new_w, 1000))
         w,h = im2.size
-        w = int((1920-w)/2)
-        h = int(1400 - h - 50)
+        if(h<1000):
+            w = int((1920-w)/2)
+            h = int((1400 - h)/2)
+        else:
+            w = int((1920-w)/2)
+            h = int(1400 - h -50)
         im.paste(im2, (w,h))
-        current_h, pad = 100 - (lineCount * 19), 10
+        current_h, pad = (h/2) - (lineCount * 19), 10
         for line in para:
             w, h = draw.textsize(line, font=font)
             draw.text(((MAX_W - w) / 2, current_h), line, font=font)

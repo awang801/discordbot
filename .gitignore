@@ -3,3 +3,4 @@ config.py
 /images
 weebquiz.csv
 data.db
+config2.py
